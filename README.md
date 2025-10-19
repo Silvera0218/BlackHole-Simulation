@@ -24,6 +24,15 @@ A key goal of this project is to make this complex simulation more accessible an
     ![Kerr Black Hole Demo](gif/blackhole_recording3.gif)
 -   **Real-time and Interactive**: The simulation is fully interactive, allowing you to move the camera, and toggle visual components on the fly.
 
+> **A Note on Performance:**
+> This simulation performs complex, real-time physics calculations on the GPU and is therefore computationally demanding. For the best experience at default settings, a modern dedicated graphics card is recommended (e.g., NVIDIA RTX 4060 or equivalent).
+>
+> If you experience low frame rates, you can easily reduce the computational load on your system by lowering the target frame rate. Simply modify the last line in the `run()` method:
+> ```python
+> self.clock.tick(60)
+> ```
+> Changing `60` to a lower value (e.g., `30` or `15`) will result in a smoother experience on less powerful hardware.
+
 ## Interaction Guide 
 
 -   **Mouse**: Click and drag to rotate the camera around the black hole.
@@ -197,6 +206,7 @@ Therefore, while we remain deeply grateful to `rossning92/Blackhole` for providi
 ## License
 
 Distributed under the MIT License. See `LICENSE` for more information.
+
 
 
 
