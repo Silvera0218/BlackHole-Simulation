@@ -56,7 +56,7 @@
 
         #define Rs (2.0 * M)
         const float PI = 3.1415926535;
-        const int MAX_STEPS = 750;
+        const int MAX_STEPS = 950;
         const float BASE_DT = 0.06;
 
         vec3 get_sky_color(vec3 dir) {
@@ -249,7 +249,7 @@
         function init() {
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.setPixelRatio(window.devicePixelRatio * 0.5); 
+            renderer.setPixelRatio(window.devicePixelRatio * 0.75); 
             document.body.appendChild(renderer.domElement);
 
             scene = new THREE.Scene();
