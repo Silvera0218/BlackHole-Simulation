@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>交互式黑洞模拟器</title>
+    <title>Interactive Black Hole Simulator</title>
 
     <style>
         body {
@@ -34,8 +34,6 @@
     </script>
 
     <script type="x-shader/x-fragment" id="fragmentShader">
-        out vec4 out_FragColor;
-
         uniform vec2 u_resolution;
         uniform vec3 u_camera_pos;
         uniform vec3 u_camera_fwd;
@@ -227,7 +225,7 @@
             }
 
             vec3 final_color = pow(final_linear, vec3(1.0/2.2));
-            out_FragColor = vec4(final_color, 1.0);
+            gl_FragColor = vec4(final_color, 1.0);
         }
     </script>
 
@@ -303,14 +301,14 @@
             scene.add(plane);
 
             const gui = new GUI();
-            gui.add(controls, 'mass', 0.1, 5.0, 0.01).name('黑洞质量 (M)');
-            gui.add(controls, 'spin', 0.0, 0.9999, 0.0001).name('黑洞自旋 (a)');
-            gui.add(controls, 'diskOuterRadius', 5.0, 50.0).name('吸积盘外径');
-            gui.add(controls, 'diskThickness', 0.1, 2.0).name('吸积盘厚度');
-            gui.add(controls, 'isKerr').name('克尔黑洞 (旋转)');
-            gui.add(controls, 'accretionDisk').name('显示吸积盘');
-            gui.add(controls, 'photonSphere').name('显示光子球');
-            gui.add(controls, 'resetCamera').name('重置相机');
+            gui.add(controls, 'mass', 0.1, 5.0, 0.01).name('Mass (M)');
+            gui.add(controls, 'spin', 0.0, 0.9999, 0.0001).name('Spin (a)');
+            gui.add(controls, 'diskOuterRadius', 5.0, 50.0).name('Disk Outer Radius');
+            gui.add(controls, 'diskThickness', 0.1, 2.0).name('Disk Thickness');
+            gui.add(controls, 'isKerr').name('Kerr Black Hole (Rotating)');
+            gui.add(controls, 'accretionDisk').name('Show Accretion Disk');
+            gui.add(controls, 'photonSphere').name('Show Photon Sphere');
+            gui.add(controls, 'resetCamera').name('Reset Camera');
 
             window.addEventListener('resize', onWindowResize);
             window.addEventListener('mousemove', onMouseMove);
@@ -383,4 +381,4 @@
 
     </script>
 </body>
-</html>```
+</html>
