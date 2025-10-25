@@ -56,7 +56,7 @@
 
         #define Rs (2.0 * M)
         const float PI = 3.1415926535;
-        const int MAX_STEPS = 400;
+        const int MAX_STEPS = 500; // A good balance for performance
         const float BASE_DT = 0.06;
 
         vec3 get_sky_color(vec3 dir) {
@@ -170,18 +170,14 @@
 
                 if (r < horizon_radius * 1.01) { hit_horizon = true; break; }
                 
-                // --- START: FINAL DYNAMIC STEP SIZING LOGIC ---
-                float DT = BASE_DT;
-                if (u_accretion_disk_enabled) {
-                    if (r > 5.0 && abs(ray_pos.y) > 1.0) {
-                        DT = r * 0.05;
-                    }
-                } else {
-                    if (r > 5.0) {
-                        DT = r * 0.05;
-                    }
+                // --- START: Final Robust Dynamic Step Sizing ---
+                float dist_to_plane = abs(ray_pos.y);
+                float DT = dist_to_plane * 0.2 + BASE_DT * 0.2;
+                DT = clamp(DT, BASE_DT * 0.5, 1.0);
+                if (r < 3.0 * Rs) {
+                    DT = BASE_DT * 0.5;
                 }
-                // --- END: FINAL DYNAMIC STEP SIZING LOGIC ---
+                // --- END: Final Robust Dynamic Step Sizing ---
 
                 if (u_accretion_disk_enabled) { 
                     float r_disk = length(ray_pos.xz);
@@ -267,7 +263,7 @@
 
             const cubeTextureLoader = new THREE.CubeTextureLoader();
             cubeTextureLoader.setPath('');
-            const skybox_texture = cubeTextureLoader.load([
+            const skyboxTexture = cubeTextureLoader.load([
                 'right.png', 'left.png',
                 'top.png', 'bottom.png',
                 'back.png', 'front.png'
@@ -276,7 +272,7 @@
             const uniforms = {
                 u_time: { value: 0.0 },
                 u_resolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
-                u_skybox: { value: skybox_texture },
+                u_skybox: { value: skyboxTexture },
                 u_camera_pos: { value: new THREE.Vector3() },
                 u_camera_fwd: { value: new THREE.Vector3() },
                 u_camera_right: { value: new THREE.Vector3() },
