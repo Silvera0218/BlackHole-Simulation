@@ -107,19 +107,15 @@
             vec3 v_dir = normalize(vec3(-pos.z, 0.0, pos.x));
             vec3 disk_velocity = v_mag * v_dir;
 
+            // --- START: THIS BLOCK IS UPDATED ---
             float r = length(pos);
-            float r2 = r*r;
-            
-            float cos2_theta = pos.y * pos.y / r2;
-            float r2_sin2_theta = pos.x * pos.x + pos.z * pos.z;
-            float rho2 = r2 + a * a * cos2_theta;
-
-            float g_tt = -(1.0 - Rs * r / rho2);
-            float g_tphi = -Rs * a * r * r2_sin2_theta / (rho2 * r2);
-            float g_phiphi_term = Rs * a * a * r * r2_sin2_theta / (rho2 * r2);
-            float g_phiphi = (r2 + a*a + g_phiphi_term) * r2_sin2_theta / r2;
-            
+            // This is the corrected Kerr metric calculation from your new Python source
+            float g_tt = -(1.0 - Rs * r / (r*r + a*a*pos.z*pos.z/(r*r)));
+            float g_tphi = -Rs * a * (pos.x*pos.x + pos.y*pos.y) / (r*r * (r*r + a*a*pos.z*pos.z/(r*r)));
+            float g_phiphi = (r*r + a*a + Rs*a*a*(pos.x*pos.x + pos.y*pos.y)/(r*r * (r*r + a*a*pos.z*pos.z/(r*r))));
             float grav_redshift = sqrt(-g_tt - 2.0*omega*g_tphi - omega*omega*g_phiphi);
+            // --- END: THIS BLOCK IS UPDATED ---
+            
             float doppler_dot = dot(disk_velocity, ray_dir);
             float doppler_factor = sqrt(1.0 - v_mag*v_mag) / (1.0 - doppler_dot);
 
@@ -301,7 +297,7 @@
             scene.add(plane);
 
             const gui = new GUI();
-            gui.add(controls, 'mass', 0.1, 5.0, 0.01).name('Mass (M)');
+            gui.add(controls, 'mass', 0.1, 1.0, 0.01).name('Mass (M)');
             gui.add(controls, 'spin', 0.0, 0.9999, 0.0001).name('Spin (a)');
             gui.add(controls, 'diskOuterRadius', 5.0, 50.0).name('Disk Outer Radius');
             gui.add(controls, 'diskThickness', 0.1, 2.0).name('Disk Thickness');
@@ -349,7 +345,6 @@
             material.uniforms.u_photon_sphere_enabled.value = controls.photonSphere;
             material.uniforms.a.value = controls.isKerr ? controls.spin * controls.mass : 0.0;
             
-            // Set inner disk radius to a constant 6.0 * M (which is 3.0 * Rs)
             material.uniforms.DISK_INNER_RADIUS.value = 6.0 * controls.mass;
 
             const cam_x = distance * Math.sin(pitch) * Math.sin(yaw);
