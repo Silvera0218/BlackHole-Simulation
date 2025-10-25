@@ -111,7 +111,11 @@
             float g_tt = -(1.0 - Rs * r / (r*r + a*a*pos.z*pos.z/(r*r)));
             float g_tphi = -Rs * a * (pos.x*pos.x + pos.y*pos.y) / (r*r * (r*r + a*a*pos.z*pos.z/(r*r)));
             float g_phiphi = (r*r + a*a + Rs*a*a*(pos.x*pos.x + pos.y*pos.y)/(r*r * (r*r + a*a*pos.z*pos.z/(r*r))));
-            float grav_redshift = sqrt(-g_tt - 2.0*omega*g_tphi - omega*omega*g_phiphi);
+            
+            // --- START: Singularity Fix ---
+            float inner_sqrt = -g_tt - 2.0*omega*g_tphi - omega*omega*g_phiphi;
+            float grav_redshift = sqrt(max(0.0, inner_sqrt));
+            // --- END: Singularity Fix ---
             
             float doppler_dot = dot(disk_velocity, ray_dir);
             float doppler_factor = sqrt(1.0 - v_mag*v_mag) / (1.0 - doppler_dot);
@@ -168,12 +172,10 @@
 
                 if (r < horizon_radius * 1.01) { hit_horizon = true; break; }
                 
-                // --- START: INTELLIGENT DYNAMIC STEP SIZING ---
                 float DT = BASE_DT;
                 if (r > 5.0 && abs(ray_pos.y) > 1.0) {
                     DT = r * 0.05;
                 }
-                // --- END: INTELLIGENT DYNAMIC STEP SIZING ---
 
                 if (u_accretion_disk_enabled) { 
                     float r_disk = length(ray_pos.xz);
