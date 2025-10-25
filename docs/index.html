@@ -204,7 +204,7 @@
                 background_srgb = get_sky_color(normalize(velocity));
             }
 
-            vec3 background_linear = pow(background_srgb, vec3(2.2));
+            //vec3 background_linear = pow(background_srgb, vec3(2.2));
             vec3 tonemapped_disk_linear = tonemap_aces(accumulated_light);
             vec3 final_linear = mix(background_linear, tonemapped_disk_linear, 1.0 - transparency);
 
