@@ -200,11 +200,12 @@
             }
 
             // --- START: Final Corrected Color Space Handling ---
-            vec3 background_linear = vec3(0.0);
+            vec3 background_srgb = vec3(0.0);
             if (!hit_horizon) {
-                background_linear = get_sky_color(normalize(velocity));
+                background_srgb = get_sky_color(normalize(velocity));
             }
 
+            vec3 background_linear = pow(background_srgb, vec3(2.2)); // Manual sRGB to Linear
             vec3 tonemapped_disk_linear = tonemap_aces(accumulated_light);
             vec3 final_linear = mix(background_linear, tonemapped_disk_linear, 1.0 - transparency);
             // --- END: Final Corrected Color Space Handling ---
@@ -219,8 +220,8 @@
                 final_linear += ring_color * intensity * transparency;
             }
 
-            // The final output is the linear color. The renderer will handle gamma correction.
-            gl_FragColor = vec4(final_linear, 1.0);
+            vec3 final_color = pow(final_linear, vec3(1.0/2.2)); // Manual Linear to sRGB (Gamma Correction)
+            gl_FragColor = vec4(final_color, 1.0);
         }
     </script>
 
@@ -250,7 +251,10 @@
 
         function init() {
             renderer = new THREE.WebGLRenderer({ antialias: true });
-            renderer.outputColorSpace = THREE.SRGBColorSpace; 
+            // --- START: Final Corrected Color Space Handling ---
+            // We REMOVE the automatic color space management to do it manually in the shader
+            // renderer.outputColorSpace = THREE.SRGBColorSpace; 
+            // --- END: Final Corrected Color Space Handling ---
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.setPixelRatio(window.devicePixelRatio * 0.75); 
             document.body.appendChild(renderer.domElement);
