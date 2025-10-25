@@ -248,6 +248,7 @@
 
         function init() {
             renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.outputColorSpace = THREE.SRGBColorSpace;
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.setPixelRatio(window.devicePixelRatio * 0.75); 
             document.body.appendChild(renderer.domElement);
