@@ -197,7 +197,7 @@
                 velocity += (k1_vel + 2.0 * k2_vel + 2.0 * k3_vel + k4_vel) / 6.0;
             }
 
-            // --- START: THIS FINAL COLOR COMPOSITION BLOCK IS NOW CORRECTED ---
+            
             vec3 background_srgb = vec3(0.0);
             if (!hit_horizon) {
                 background_srgb = get_sky_color(normalize(velocity));
@@ -206,7 +206,6 @@
             vec3 background_linear = pow(background_srgb, vec3(2.2));
             vec3 tonemapped_disk_linear = tonemap_aces(accumulated_light);
             vec3 final_linear = mix(background_linear, tonemapped_disk_linear, 1.0 - transparency);
-            // --- END: CORRECTION ---
 
             if (!u_kerr_enabled && u_photon_sphere_enabled) {
                 float photon_sphere_radius = 1.5 * Rs;
