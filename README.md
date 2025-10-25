@@ -9,7 +9,7 @@ The core rendering logic and shader framework were initially inspired by the exc
 
 A key goal of this project is to make this complex simulation more accessible and significantly easier to run. The Python version is platform-independent and requires no compilation, effectively lowering the barrier for anyone wishing to experience or experiment with these fascinating cosmic objects.
 
-You may visit the [Web version](https://silvera0218.github.io/BlackHole-Simulation/) of this project here for online interations.
+You may visit the [web version](https://silvera0218.github.io/BlackHole-Simulation/) of this project here for online interations.
 
 ---
 ## Key Features
@@ -208,6 +208,7 @@ Therefore, while we remain deeply grateful to `rossning92/Blackhole` for providi
 ## License
 
 Distributed under the MIT License. See `LICENSE` for more information.
+
 
 
 
