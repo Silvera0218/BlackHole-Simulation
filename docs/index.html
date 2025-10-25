@@ -27,7 +27,6 @@
 </head>
 <body>
 
-    
     <script type="x-shader/x-vertex" id="vertexShader">
         void main() {
             gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
@@ -112,7 +111,9 @@
             float g_tt = -(1.0 - Rs * r / (r*r + a*a*pos.z*pos.z/(r*r)));
             float g_tphi = -Rs * a * (pos.x*pos.x + pos.y*pos.y) / (r*r * (r*r + a*a*pos.z*pos.z/(r*r)));
             float g_phiphi = (r*r + a*a + Rs*a*a*(pos.x*pos.x + pos.y*pos.y)/(r*r * (r*r + a*a*pos.z*pos.z/(r*r))));
-            float grav_redshift = sqrt(-g_tt - 2.0*omega*g_tphi - omega*omega*g_phiphi);
+            
+            float inner_sqrt = -g_tt - 2.0*omega*g_tphi - omega*omega*g_phiphi;
+            float grav_redshift = sqrt(max(0.0, inner_sqrt));
             
             float doppler_dot = dot(disk_velocity, ray_dir);
             float doppler_factor = sqrt(1.0 - v_mag*v_mag) / (1.0 - doppler_dot);
@@ -198,15 +199,15 @@
                 velocity += (k1_vel + 2.0 * k2_vel + 2.0 * k3_vel + k4_vel) / 6.0;
             }
 
-            
-            vec3 background_srgb = vec3(0.0);
+            // --- START: Final Corrected Color Space Handling ---
+            vec3 background_linear = vec3(0.0);
             if (!hit_horizon) {
-                background_srgb = get_sky_color(normalize(velocity));
+                background_linear = get_sky_color(normalize(velocity));
             }
 
-            //vec3 background_linear = pow(background_srgb, vec3(2.2));
             vec3 tonemapped_disk_linear = tonemap_aces(accumulated_light);
             vec3 final_linear = mix(background_linear, tonemapped_disk_linear, 1.0 - transparency);
+            // --- END: Final Corrected Color Space Handling ---
 
             if (!u_kerr_enabled && u_photon_sphere_enabled) {
                 float photon_sphere_radius = 1.5 * Rs;
@@ -218,8 +219,8 @@
                 final_linear += ring_color * intensity * transparency;
             }
 
-            vec3 final_color = pow(final_linear, vec3(1.0/2.2));
-            gl_FragColor = vec4(final_color, 1.0);
+            // The final output is the linear color. The renderer will handle gamma correction.
+            gl_FragColor = vec4(final_linear, 1.0);
         }
     </script>
 
@@ -249,7 +250,7 @@
 
         function init() {
             renderer = new THREE.WebGLRenderer({ antialias: true });
-            renderer.outputColorSpace = THREE.SRGBColorSpace;
+            renderer.outputColorSpace = THREE.SRGBColorSpace; 
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.setPixelRatio(window.devicePixelRatio * 0.75); 
             document.body.appendChild(renderer.domElement);
