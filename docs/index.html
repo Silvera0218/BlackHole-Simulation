@@ -56,7 +56,7 @@
 
         #define Rs (2.0 * M)
         const float PI = 3.1415926535;
-        const int MAX_STEPS = 800;
+        const int MAX_STEPS = 1000;
         const float BASE_DT = 0.06;
 
         vec3 get_sky_color(vec3 dir) {
@@ -197,6 +197,7 @@
                 velocity += (k1_vel + 2.0 * k2_vel + 2.0 * k3_vel + k4_vel) / 6.0;
             }
 
+            // --- START: THIS FINAL COLOR COMPOSITION BLOCK IS NOW CORRECTED ---
             vec3 background_srgb = vec3(0.0);
             if (!hit_horizon) {
                 background_srgb = get_sky_color(normalize(velocity));
@@ -205,7 +206,8 @@
             vec3 background_linear = pow(background_srgb, vec3(2.2));
             vec3 tonemapped_disk_linear = tonemap_aces(accumulated_light);
             vec3 final_linear = mix(background_linear, tonemapped_disk_linear, 1.0 - transparency);
-            
+            // --- END: CORRECTION ---
+
             if (!u_kerr_enabled && u_photon_sphere_enabled) {
                 float photon_sphere_radius = 1.5 * Rs;
                 float ring_width = 0.05;
@@ -248,7 +250,7 @@
         function init() {
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.setPixelRatio(window.devicePixelRatio * 0.5);
+            renderer.setPixelRatio(window.devicePixelRatio * 0.7); 
             document.body.appendChild(renderer.domElement);
 
             scene = new THREE.Scene();
@@ -264,13 +266,9 @@
                 'back.png', 'front.png'
             ]);
 
-
-            const resolutionVec = new THREE.Vector2();
-            renderer.getSize(resolutionVec);
-            
             const uniforms = {
                 u_time: { value: 0.0 },
-                u_resolution: { value: resolutionVec},
+                u_resolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
                 u_skybox: { value: skyboxTexture },
                 u_camera_pos: { value: new THREE.Vector3() },
                 u_camera_fwd: { value: new THREE.Vector3() },
@@ -314,7 +312,7 @@
 
         function onWindowResize() {
             renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.getSize(material.uniforms.u_resolution.value);
+            material.uniforms.u_resolution.value.set(window.innerWidth, window.innerHeight);
         }
 
         function onMouseMove(event) {
