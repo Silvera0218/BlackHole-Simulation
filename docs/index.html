@@ -56,7 +56,7 @@
 
         #define Rs (2.0 * M)
         const float PI = 3.1415926535;
-        const int MAX_STEPS = 400; 
+        const int MAX_STEPS = 400;
         const float BASE_DT = 0.06;
 
         vec3 get_sky_color(vec3 dir) {
@@ -168,12 +168,12 @@
 
                 if (r < horizon_radius * 1.01) { hit_horizon = true; break; }
                 
-                // --- START: DYNAMIC STEP SIZING ---
+                // --- START: INTELLIGENT DYNAMIC STEP SIZING ---
                 float DT = BASE_DT;
-                if (r > 5.0) {
+                if (r > 5.0 && abs(ray_pos.y) > 1.0) {
                     DT = r * 0.05;
                 }
-                // --- END: DYNAMIC STEP SIZING ---
+                // --- END: INTELLIGENT DYNAMIC STEP SIZING ---
 
                 if (u_accretion_disk_enabled) { 
                     float r_disk = length(ray_pos.xz);
