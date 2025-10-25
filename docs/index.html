@@ -112,10 +112,8 @@
             float g_tphi = -Rs * a * (pos.x*pos.x + pos.y*pos.y) / (r*r * (r*r + a*a*pos.z*pos.z/(r*r)));
             float g_phiphi = (r*r + a*a + Rs*a*a*(pos.x*pos.x + pos.y*pos.y)/(r*r * (r*r + a*a*pos.z*pos.z/(r*r))));
             
-            // --- START: Singularity Fix ---
             float inner_sqrt = -g_tt - 2.0*omega*g_tphi - omega*omega*g_phiphi;
             float grav_redshift = sqrt(max(0.0, inner_sqrt));
-            // --- END: Singularity Fix ---
             
             float doppler_dot = dot(disk_velocity, ray_dir);
             float doppler_factor = sqrt(1.0 - v_mag*v_mag) / (1.0 - doppler_dot);
@@ -172,10 +170,18 @@
 
                 if (r < horizon_radius * 1.01) { hit_horizon = true; break; }
                 
+                // --- START: FINAL DYNAMIC STEP SIZING LOGIC ---
                 float DT = BASE_DT;
-                if (r > 5.0 && abs(ray_pos.y) > 1.0) {
-                    DT = r * 0.05;
+                if (u_accretion_disk_enabled) {
+                    if (r > 5.0 && abs(ray_pos.y) > 1.0) {
+                        DT = r * 0.05;
+                    }
+                } else {
+                    if (r > 5.0) {
+                        DT = r * 0.05;
+                    }
                 }
+                // --- END: FINAL DYNAMIC STEP SIZING LOGIC ---
 
                 if (u_accretion_disk_enabled) { 
                     float r_disk = length(ray_pos.xz);
@@ -261,7 +267,7 @@
 
             const cubeTextureLoader = new THREE.CubeTextureLoader();
             cubeTextureLoader.setPath('');
-            const skyboxTexture = cubeTextureLoader.load([
+            const skybox_texture = cubeTextureLoader.load([
                 'right.png', 'left.png',
                 'top.png', 'bottom.png',
                 'back.png', 'front.png'
@@ -270,7 +276,7 @@
             const uniforms = {
                 u_time: { value: 0.0 },
                 u_resolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
-                u_skybox: { value: skyboxTexture },
+                u_skybox: { value: skybox_texture },
                 u_camera_pos: { value: new THREE.Vector3() },
                 u_camera_fwd: { value: new THREE.Vector3() },
                 u_camera_right: { value: new THREE.Vector3() },
