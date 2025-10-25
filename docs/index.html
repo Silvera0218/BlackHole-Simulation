@@ -250,6 +250,7 @@
         function init() {
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio * 0.7); 
             document.body.appendChild(renderer.domElement);
 
             scene = new THREE.Scene();
