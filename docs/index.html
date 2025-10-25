@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>交互式黑洞模拟器</title>
+
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #000;
+        }
+        canvas {
+            display: block;
+        }
+    </style>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.158.0/build/three.module.js",
+                "lil-gui": "https://cdn.jsdelivr.net/npm/lil-gui@0.19/+esm"
+            }
+        }
+    </script>
+</head>
+<body>
+
+    <script type="x-shader/x-vertex" id="vertexShader">
+        void main() {
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+    </script>
+
+    <script type="x-shader/x-fragment" id="fragmentShader">
+        #version 300 es
+        precision highp float;
+
+        out vec4 out_FragColor;
+
+        uniform vec2 u_resolution;
+        uniform vec3 u_camera_pos;
+        uniform vec3 u_camera_fwd;
+        uniform vec3 u_camera_right;
+        uniform vec3 u_camera_up;
+        uniform float u_time;
+        uniform float u_skybox_rotation;
+        uniform samplerCube u_skybox;
+
+        uniform float M;
+        uniform float a;
+
+        uniform float DISK_INNER_RADIUS;
+        uniform float DISK_OUTER_RADIUS;
+        uniform float DISK_THICKNESS;
+
+        uniform bool u_accretion_disk_enabled;
+        uniform bool u_photon_sphere_enabled;
+        uniform bool u_kerr_enabled;
+
+        #define Rs (2.0 * M)
+        const float PI = 3.1415926535;
+        const int MAX_STEPS = 1000;
+        const float BASE_DT = 0.06;
+
+        vec3 get_sky_color(vec3 dir) {
+            float angle = u_skybox_rotation;
+            mat2 rot = mat2(cos(angle), -sin(angle), sin(angle), cos(angle));
+            vec3 rotated_dir = dir;
+            rotated_dir.xz = rot * rotated_dir.xz;
+            return texture(u_skybox, vec3(rotated_dir.x, rotated_dir.y, -rotated_dir.z)).rgb;
+        }
+
+        float random(vec2 st) { return fract(sin(dot(st.xy, vec2(12.9898,78.233))) * 43758.5453123); }
+        float noise(vec2 st) {
+            vec2 i = floor(st); vec2 f = fract(st);
+            float a = random(i); float b = random(i + vec2(1.0, 0.0));
+            float c = random(i + vec2(0.0, 1.0)); float d = random(i + vec2(1.0, 1.0));
+            vec2 u = f * f * (3.0 - 2.0 * f);
+            return mix(a, b, u.x) + (c - a) * u.y * (1.0 - u.x) + (d - b) * u.y * u.x;
+        }
+        float fbm(vec2 st) {
+            float value = 0.0; float amplitude = 0.5;
+            for (int i = 0; i < 4; i++) {
+                value += amplitude * noise(st); st *= 2.0; amplitude *= 0.5;
+            }
+            return value;
+        }
+
+        vec3 get_disk_color(vec3 pos, vec3 ray_dir) {
+            float r_cyl = length(pos.xz);
+            if (r_cyl < DISK_INNER_RADIUS || r_cyl > DISK_OUTER_RADIUS) return vec3(0.0);
+            float vertical_falloff = 1.0 - smoothstep(0.0, DISK_THICKNESS, abs(pos.y));
+            if (vertical_falloff <= 0.0) return vec3(0.0);
+            
+            float phi = atan(pos.z, pos.x);
+            float animated_phi = phi + u_time * 0.2 / (r_cyl * 0.5);
+            vec2 base_coord = vec2(cos(animated_phi), sin(animated_phi)) * r_cyl * 0.3;
+            
+            vec2 warp_coord1 = base_coord + vec2(u_time * 0.1, 0.0);
+            vec2 warp_coord2 = base_coord + vec2(0.0, u_time * 0.08);
+            vec2 warp_offset = vec2(fbm(warp_coord1), fbm(warp_coord2));
+            float noise_val = fbm(base_coord + warp_offset * 0.5);
+            
+            noise_val = pow(noise_val, 2.5);
+            float temp = 1.0 - smoothstep(DISK_INNER_RADIUS, DISK_OUTER_RADIUS, r_cyl);
+            temp = pow(temp, 2.0);
+
+            float omega = sqrt(M) / (pow(r_cyl, 1.5) + a * sqrt(M));
+            float v_mag = omega * r_cyl;
+            vec3 v_dir = normalize(vec3(-pos.z, 0.0, pos.x));
+            vec3 disk_velocity = v_mag * v_dir;
+
+            float r = length(pos);
+            float r2 = r*r;
+            
+            float cos2_theta = pos.y * pos.y / r2;
+            float r2_sin2_theta = pos.x * pos.x + pos.z * pos.z;
+            float rho2 = r2 + a * a * cos2_theta;
+
+            float g_tt = -(1.0 - Rs * r / rho2);
+            float g_tphi = -Rs * a * r * r2_sin2_theta / (rho2 * r2);
+            float g_phiphi_term = Rs * a * a * r * r2_sin2_theta / (rho2 * r2);
+            float g_phiphi = (r2 + a*a + g_phiphi_term) * r2_sin2_theta / r2;
+            
+            float grav_redshift = sqrt(-g_tt - 2.0*omega*g_tphi - omega*omega*g_phiphi);
+            float doppler_dot = dot(disk_velocity, ray_dir);
+            float doppler_factor = sqrt(1.0 - v_mag*v_mag) / (1.0 - doppler_dot);
+
+            vec3 color_bright = vec3(temp * 1.0, temp * 1.0, temp * 25.0);
+            vec3 color_dark = vec3(temp * 1.0, temp * 1.0, temp * 20.0);
+            float mix_factor = smoothstep(0.4, 1.6, doppler_factor);
+            vec3 base_color = mix(color_dark, color_bright, mix_factor) * noise_val;
+
+            float brightness = pow(doppler_factor, 10.0);
+            return base_color * brightness * grav_redshift * vertical_falloff;
+        }
+
+        vec3 get_acceleration(vec3 pos, vec3 vel) {
+            float r2 = dot(pos, pos);
+            if (r2 < 1e-4) return vec3(0.0);
+            float r = sqrt(r2);
+
+            vec3 acc_schwarzschild = -M * pos / pow(r, 3.0) * (1.0 + 3.0 * dot(cross(pos, vel), cross(pos, vel)) / (r2));
+
+            if (u_kerr_enabled) {
+                vec3 J = vec3(0, a * M, 0);
+                float r3 = r2 * r;
+                vec3 acc_drag = -(6.0 * M / r3) * cross(vel, J);
+                return acc_schwarzschild + acc_drag;
+            }
+
+            return acc_schwarzschild;
+        }
+
+        vec3 tonemap_aces(vec3 x) {
+            float a = 2.51; float b = 0.03; float c = 2.43;
+            float d = 0.59; float e = 0.14;
+            return clamp((x * (a * x + b)) / (x * (c * x + d) + e), 0.0, 1.0);
+        }
+
+        void main() {
+            vec2 uv = (2.0 * gl_FragCoord.xy - u_resolution.xy) / u_resolution.y;
+            float fov_factor = 0.8; 
+            vec3 ray_dir = normalize(u_camera_fwd + (uv.x * u_camera_right + uv.y * u_camera_up) * fov_factor);
+            vec3 ray_pos = u_camera_pos;
+            vec3 velocity = ray_dir;
+            
+            bool hit_horizon = false;
+            vec3 accumulated_light = vec3(0.0);
+            float transparency = 1.0;
+            float min_r = 1000.0;
+
+            float horizon_radius = u_kerr_enabled ? M + sqrt(M*M - a*a) : Rs;
+
+            for (int i = 0; i < MAX_STEPS; ++i) {
+                float r = length(ray_pos);
+                min_r = min(min_r, r);
+
+                if (r < horizon_radius * 1.01) { hit_horizon = true; break; }
+                
+                float DT = BASE_DT;
+                if (r > 1.0) {
+                    DT = min(BASE_DT, r * r * 0.005); 
+                }
+
+                if (u_accretion_disk_enabled) { 
+                    float r_disk = length(ray_pos.xz);
+                    if (abs(ray_pos.y) < DISK_THICKNESS && r_disk >= DISK_INNER_RADIUS && r_disk < DISK_OUTER_RADIUS) {
+                        vec3 step_color = get_disk_color(ray_pos, normalize(velocity)) * DT * 10.0;
+                        accumulated_light += step_color * transparency;
+                        float opacity = clamp(dot(step_color, vec3(0.333)) * 0.1, 0.0, 1.0);
+                        transparency *= (1.0 - opacity);
+                        if (transparency < 0.01) { break; }
+                    }
+                }
+                
+                vec3 k1_vel = DT * get_acceleration(ray_pos, velocity);
+                vec3 k1_pos = DT * velocity;
+                vec3 k2_vel = DT * get_acceleration(ray_pos + k1_pos * 0.5, velocity + k1_vel * 0.5);
+                vec3 k2_pos = DT * (velocity + k1_vel * 0.5);
+                vec3 k3_vel = DT * get_acceleration(ray_pos + k2_pos * 0.5, velocity + k2_vel * 0.5);
+                vec3 k3_pos = DT * (velocity + k2_vel * 0.5);
+                vec3 k4_vel = DT * get_acceleration(ray_pos + k3_pos, velocity + k3_vel);
+                vec3 k4_pos = DT * (velocity + k3_vel);
+
+                ray_pos += (k1_pos + 2.0 * k2_pos + 2.0 * k3_pos + k4_pos) / 6.0;
+                velocity += (k1_vel + 2.0 * k2_vel + 2.0 * k3_vel + k4_vel) / 6.0;
+            }
+
+            vec3 final_linear;
+            if (hit_horizon) {
+                final_linear = vec3(0.0);
+            } else {
+                vec3 background_srgb = get_sky_color(normalize(velocity));
+                vec3 background_linear = pow(background_srgb, vec3(2.2));
+                vec3 tonemapped_disk_linear = tonemap_aces(accumulated_light);
+                final_linear = mix(background_linear, tonemapped_disk_linear, 1.0 - transparency);
+            }
+
+            if (!u_kerr_enabled && u_photon_sphere_enabled) {
+                float photon_sphere_radius = 1.5 * Rs;
+                float ring_width = 0.05;
+                float ring_start = photon_sphere_radius - ring_width;
+                float ring_end = photon_sphere_radius + ring_width;
+                float intensity = smoothstep(ring_start, photon_sphere_radius, min_r) * (1.0 - smoothstep(photon_sphere_radius, ring_end, min_r));
+                vec3 ring_color = vec3(1.0, 0.8, 0.4) * 2.0;
+                final_linear += ring_color * intensity * transparency;
+            }
+
+            vec3 final_color = pow(final_linear, vec3(1.0/2.2));
+            out_FragColor = vec4(final_color, 1.0);
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import GUI from 'lil-gui';
+
+        let renderer, scene, camera, material, clock;
+        let distance = 20.0;
+        let yaw = 0;
+        let pitch = Math.PI / 2;
+
+        const controls = {
+            mass: 0.9,
+            spin: 0.999,
+            diskOuterRadius: 24.0,
+            diskThickness: 0.3,
+            isKerr: true,
+            accretionDisk: true,
+            photonSphere: true,
+            resetCamera: () => {
+                distance = 20.0;
+                yaw = 0;
+                pitch = Math.PI / 2.01;
+            }
+        };
+
+        function init() {
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(renderer.domElement);
+
+            scene = new THREE.Scene();
+            camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+
+            clock = new THREE.Clock();
+
+            const cubeTextureLoader = new THREE.CubeTextureLoader();
+            cubeTextureLoader.setPath('textures/');
+            const skyboxTexture = cubeTextureLoader.load([
+                'right.png', 'left.png',
+                'top.png', 'bottom.png',
+                'back.png', 'front.png'
+            ]);
+
+            const uniforms = {
+                u_time: { value: 0.0 },
+                u_resolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
+                u_skybox: { value: skyboxTexture },
+                u_camera_pos: { value: new THREE.Vector3() },
+                u_camera_fwd: { value: new THREE.Vector3() },
+                u_camera_right: { value: new THREE.Vector3() },
+                u_camera_up: { value: new THREE.Vector3() },
+                u_skybox_rotation: { value: 0.0 },
+                M: { value: controls.mass },
+                a: { value: 0.0 },
+                DISK_INNER_RADIUS: { value: 6.0 * controls.mass },
+                DISK_OUTER_RADIUS: { value: controls.diskOuterRadius },
+                DISK_THICKNESS: { value: controls.diskThickness },
+                u_kerr_enabled: { value: controls.isKerr },
+                u_accretion_disk_enabled: { value: controls.accretionDisk },
+                u_photon_sphere_enabled: { value: controls.photonSphere },
+            };
+
+            material = new THREE.ShaderMaterial({
+                uniforms: uniforms,
+                vertexShader: document.getElementById('vertexShader').textContent,
+                fragmentShader: document.getElementById('fragmentShader').textContent
+            });
+
+            const geometry = new THREE.PlaneGeometry(2, 2);
+            const plane = new THREE.Mesh(geometry, material);
+            scene.add(plane);
+
+            const gui = new GUI();
+            gui.add(controls, 'mass', 0.1, 5.0, 0.01).name('黑洞质量 (M)');
+            gui.add(controls, 'spin', 0.0, 0.9999, 0.0001).name('黑洞自旋 (a)');
+            gui.add(controls, 'diskOuterRadius', 5.0, 50.0).name('吸积盘外径');
+            gui.add(controls, 'diskThickness', 0.1, 2.0).name('吸积盘厚度');
+            gui.add(controls, 'isKerr').name('克尔黑洞 (旋转)');
+            gui.add(controls, 'accretionDisk').name('显示吸积盘');
+            gui.add(controls, 'photonSphere').name('显示光子球');
+            gui.add(controls, 'resetCamera').name('重置相机');
+
+            window.addEventListener('resize', onWindowResize);
+            window.addEventListener('mousemove', onMouseMove);
+            window.addEventListener('wheel', onMouseWheel);
+        }
+
+        function onWindowResize() {
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            material.uniforms.u_resolution.value.set(window.innerWidth, window.innerHeight);
+        }
+
+        function onMouseMove(event) {
+            if (event.buttons === 1) {
+                yaw += event.movementX * 0.005;
+                pitch -= event.movementY * 0.005;
+                pitch = Math.max(0.01, Math.min(Math.PI - 0.01, pitch));
+            }
+        }
+
+        function onMouseWheel(event) {
+            distance += event.deltaY * 0.01;
+            distance = Math.max(5.0, Math.min(50.0, distance));
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const elapsedTime = clock.getElapsedTime();
+            
+            material.uniforms.u_time.value = elapsedTime;
+            material.uniforms.u_skybox_rotation.value = elapsedTime / 20.0;
+
+            material.uniforms.M.value = controls.mass;
+            material.uniforms.DISK_OUTER_RADIUS.value = controls.diskOuterRadius;
+            material.uniforms.DISK_THICKNESS.value = controls.diskThickness;
+            material.uniforms.u_kerr_enabled.value = controls.isKerr;
+            material.uniforms.u_accretion_disk_enabled.value = controls.accretionDisk;
+            material.uniforms.u_photon_sphere_enabled.value = controls.photonSphere;
+            material.uniforms.a.value = controls.isKerr ? controls.spin * controls.mass : 0.0;
+            
+            if (controls.isKerr) {
+                const Z1 = 1 + Math.pow(1 - controls.spin * controls.spin, 1/3) * (Math.pow(1 + controls.spin, 1/3) + Math.pow(1 - controls.spin, 1/3));
+                const Z2 = Math.sqrt(3 * controls.spin * controls.spin + Z1 * Z1);
+                const r_isco = controls.mass * (3 + Z2 - Math.sqrt((3 - Z1) * (3 + Z1 + 2 * Z2)));
+                material.uniforms.DISK_INNER_RADIUS.value = r_isco;
+            } else {
+                material.uniforms.DISK_INNER_RADIUS.value = 6.0 * controls.mass;
+            }
+
+            const cam_x = distance * Math.sin(pitch) * Math.sin(yaw);
+            const cam_y = distance * Math.cos(pitch);
+            const cam_z = distance * Math.sin(pitch) * Math.cos(yaw);
+            material.uniforms.u_camera_pos.value.set(cam_x, cam_y, cam_z);
+
+            const tempCam = new THREE.PerspectiveCamera();
+            tempCam.position.set(cam_x, cam_y, cam_z);
+            tempCam.lookAt(0, 0, 0);
+            tempCam.updateMatrixWorld();
+
+            const matrix = tempCam.matrixWorld;
+            material.uniforms.u_camera_fwd.value.set(-matrix.elements[8], -matrix.elements[9], -matrix.elements[10]);
+            material.uniforms.u_camera_right.value.set(matrix.elements[0], matrix.elements[1], matrix.elements[2]);
+            material.uniforms.u_camera_up.value.set(matrix.elements[4], matrix.elements[5], matrix.elements[6]);
+
+            renderer.render(scene, camera);
+        }
+
+        init();
+        animate();
+
+    </script>
+</body>
+</html>
