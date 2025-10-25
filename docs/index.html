@@ -56,7 +56,7 @@
 
         #define Rs (2.0 * M)
         const float PI = 3.1415926535;
-        const int MAX_STEPS = 1000;
+        const int MAX_STEPS = 850;
         const float BASE_DT = 0.06;
 
         vec3 get_sky_color(vec3 dir) {
@@ -111,9 +111,7 @@
             float g_tt = -(1.0 - Rs * r / (r*r + a*a*pos.z*pos.z/(r*r)));
             float g_tphi = -Rs * a * (pos.x*pos.x + pos.y*pos.y) / (r*r * (r*r + a*a*pos.z*pos.z/(r*r)));
             float g_phiphi = (r*r + a*a + Rs*a*a*(pos.x*pos.x + pos.y*pos.y)/(r*r * (r*r + a*a*pos.z*pos.z/(r*r))));
-            
-            float inner_sqrt = -g_tt - 2.0*omega*g_tphi - omega*omega*g_phiphi;
-            float grav_redshift = sqrt(max(0.0, inner_sqrt));
+            float grav_redshift = sqrt(-g_tt - 2.0*omega*g_tphi - omega*omega*g_phiphi);
             
             float doppler_dot = dot(disk_velocity, ray_dir);
             float doppler_factor = sqrt(1.0 - v_mag*v_mag) / (1.0 - doppler_dot);
@@ -199,6 +197,7 @@
                 velocity += (k1_vel + 2.0 * k2_vel + 2.0 * k3_vel + k4_vel) / 6.0;
             }
 
+            // --- START: THIS FINAL COLOR COMPOSITION BLOCK IS NOW CORRECTED ---
             vec3 background_srgb = vec3(0.0);
             if (!hit_horizon) {
                 background_srgb = get_sky_color(normalize(velocity));
@@ -207,6 +206,7 @@
             vec3 background_linear = pow(background_srgb, vec3(2.2));
             vec3 tonemapped_disk_linear = tonemap_aces(accumulated_light);
             vec3 final_linear = mix(background_linear, tonemapped_disk_linear, 1.0 - transparency);
+            // --- END: CORRECTION ---
 
             if (!u_kerr_enabled && u_photon_sphere_enabled) {
                 float photon_sphere_radius = 1.5 * Rs;
@@ -250,7 +250,7 @@
         function init() {
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.setPixelRatio(window.devicePixelRatio * 0.7); 
+            renderer.setPixelRatio(window.devicePixelRatio * 0.6);
             document.body.appendChild(renderer.domElement);
 
             scene = new THREE.Scene();
