@@ -267,6 +267,7 @@
 
             const resolutionVec = new THREE.Vector2();
             renderer.getSize(resolutionVec);
+            
             const uniforms = {
                 u_time: { value: 0.0 },
                 u_resolution: { value: resolutionVec) },
@@ -313,7 +314,7 @@
 
         function onWindowResize() {
             renderer.setSize(window.innerWidth, window.innerHeight);
-            material.uniforms.u_resolution.value.set(window.innerWidth, window.innerHeight);
+            renderer.getSize(material.uniforms.u_resolution.value);
         }
 
         function onMouseMove(event) {
